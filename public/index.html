@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Airport Concierge</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1a1d21; --muted: #6b7280;
+    --user: #1f3a5f; --user-text: #ffffff; --bot: #e9ecf1; --border: #d9dde3;
+    --accent: #1f3a5f; --warn: #b45309; --err: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --panel: #171b21; --text: #e6e8eb; --muted: #9aa3ad;
+      --user: #3b6ea5; --bot: #222831; --border: #2b323c; --accent: #6ea0d8;
+      --warn: #f59e0b; --err: #f87171;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .app { max-width: 760px; margin: 0 auto; height: 100dvh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0; }
+  header p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  header button { background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+  #log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; word-wrap: break-word; }
+  .msg.user { white-space: pre-wrap; }
+  .msg.bot p { margin: 0 0 10px; }
+  .msg.bot p:last-child, .msg.bot ul:last-child, .msg.bot ol:last-child { margin-bottom: 0; }
+  .msg.bot ul, .msg.bot ol { margin: 0 0 10px; padding-left: 22px; }
+  .msg.bot li { margin: 2px 0; }
+  .msg.bot code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: rgba(127,127,127,.18); padding: 1px 5px; border-radius: 4px; }
+  .msg.bot strong { font-weight: 650; }
+  .msg.user { align-self: flex-end; background: var(--user); color: var(--user-text); border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--bot); border-bottom-left-radius: 4px; }
+  .msg.error { align-self: flex-start; border: 1px solid var(--err); color: var(--err); background: transparent; }
+  .meta { align-self: flex-start; font-size: 12px; color: var(--muted); margin: -6px 0 0 6px; }
+  .meta .chip { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; margin: 2px 4px 0 0; }
+  .meta .chip.guard { border-color: var(--warn); color: var(--warn); }
+  .meta details { display: inline; }
+  .meta summary { cursor: pointer; display: inline; color: var(--accent); }
+  .meta ul { margin: 4px 0 0 16px; padding: 0; }
+  .typing { align-self: flex-start; color: var(--muted); font-style: italic; }
+  .suggest { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }
+  .suggest button { font-size: 12px; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 5px 10px; cursor: pointer; }
+  form { display: flex; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--border); background: var(--panel); }
+  textarea { flex: 1; resize: none; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; background: var(--bg); color: var(--text); min-height: 44px; max-height: 140px; }
+  form button { background: var(--accent); color: #fff; border: 0; border-radius: 10px; padding: 0 16px; font-weight: 600; cursor: pointer; }
+  form button:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Airport Concierge</h1>
+      <p>Flights, lounges and delay claims. Conversation stays in this tab.</p>
+    </div>
+    <button id="reset" type="button">New conversation</button>
+  </header>
+
+  <div id="log" aria-live="polite"></div>
+
+  <div class="suggest" id="suggest">
+    <button type="button">What's the status of BA117?</button>
+    <button type="button">Find me a lounge at LHR T5, member PP-1001</button>
+    <button type="button">Is my delay on BA117 covered? Member PP-1001</button>
+    <button type="button">BA117 is delayed. I'm PP-1001. Help me with lounge and claim.</button>
+  </div>
+
+  <form id="form">
+    <textarea id="input" rows="1" placeholder="Ask about a flight, lounge or claim…" autofocus></textarea>
+    <button id="send" type="submit">Send</button>
+  </form>
+</div>
+
+<script>
+  const log = document.getElementById("log");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
+  const send = document.getElementById("send");
+  const resetBtn = document.getElementById("reset");
+  const suggest = document.getElementById("suggest");
+  let history = [];
+  let busy = false;
+
+  function add(cls, text) {
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  function addMeta(r) {
+    const el = document.createElement("div");
+    el.className = "meta";
+    const via = r.delegatedTo && r.delegatedTo.length ? "via " + r.delegatedTo.join(", ") : "answered directly";
+    let html = `<span class="chip">${esc(via)}</span><span class="chip">${(r.durationMs / 1000).toFixed(1)}s</span>`;
+    for (const g of r.guardrails || []) html += `<span class="chip guard">guardrail: ${esc(g)}</span>`;
+    if (r.toolCalls && r.toolCalls.length) {
+      html += `<details><summary>${r.toolCalls.length} tool call${r.toolCalls.length > 1 ? "s" : ""}</summary><ul>` +
+        r.toolCalls.map(t => `<li>${esc(t.agent)} → ${esc(t.tool)} ${t.ok ? "✓" : "✗"} (${t.durationMs}ms)</li>`).join("") +
+        `</ul></details>`;
+    }
+    el.innerHTML = html;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+  // Tiny Markdown subset: paragraphs, bullet/numbered lists, **bold**, *italic*, `code`.
+  // Text is HTML-escaped first, so model output can never inject markup.
+  function inline(t) {
+    return esc(t)
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  }
+  function renderMarkdown(src) {
+    const lines = String(src).replace(/\r/g, "").split("\n");
+    let html = "", list = null, para = [];
+    const flushPara = () => { if (para.length) { html += `<p>${inline(para.join(" "))}</p>`; para = []; } };
+    const flushList = () => { if (list) { html += `</${list}>`; list = null; } };
+    for (const raw of lines) {
+      const line = raw.trim();
+      const bullet = /^[-*•]\s+(.*)/.exec(line);
+      const numbered = /^\d+[.)]\s+(.*)/.exec(line);
+      if (bullet || numbered) {
+        flushPara();
+        const type = bullet ? "ul" : "ol";
+        if (list !== type) { flushList(); list = type; html += `<${type}>`; }
+        html += `<li>${inline((bullet || numbered)[1])}</li>`;
+      } else if (!line) {
+        flushPara(); flushList();
+      } else {
+        flushList(); para.push(line);
+      }
+    }
+    flushPara(); flushList();
+    return html;
+  }
+  function addBot(text) {
+    const el = document.createElement("div");
+    el.className = "msg bot";
+    el.innerHTML = renderMarkdown(text);
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+    return el;
+  }
+
+  async function ask(message) {
+    if (busy || !message) return;
+    busy = true; send.disabled = true; suggest.style.display = "none";
+    add("user", message);
+    input.value = ""; input.style.height = "";
+    const typing = add("typing", "Concierge is checking…");
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message, history }),
+      });
+      const r = await res.json();
+      typing.remove();
+      if (!res.ok || r.error) {
+        add("error", r.error || `Request failed (${res.status})`);
+      } else {
+        addBot(r.text);
+        addMeta(r);
+        history.push({ role: "user", content: message }, { role: "assistant", content: r.text });
+        if (history.length > 40) history = history.slice(-40);
+      }
+    } catch (e) {
+      typing.remove();
+      add("error", "Could not reach the server: " + e.message);
+    } finally {
+      busy = false; send.disabled = false; input.focus();
+    }
+  }
+
+  form.addEventListener("submit", e => { e.preventDefault(); ask(input.value.trim()); });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+  input.addEventListener("input", () => { input.style.height = ""; input.style.height = Math.min(input.scrollHeight, 140) + "px"; });
+  suggest.addEventListener("click", e => { if (e.target.tagName === "BUTTON") ask(e.target.textContent); });
+  resetBtn.addEventListener("click", () => {
+    history = []; log.innerHTML = ""; suggest.style.display = "";
+    addBot("New conversation started. How can I help?");
+  });
+
+  addBot("Hi! I can check flight status, find lounges, and check or file delay claims. What do you need?");
+</script>
+</body>
+</html>

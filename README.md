@@ -27,6 +27,7 @@ cp .env.example .env            # add your OpenRouter key (OPEN_ROUTER_KEY=...)
 npm run demo                    # the scenario above, with an execution trace
 npm run demo -- "Is EK5 on time?"
 npm run chat                    # interactive REPL with conversation history ('reset' clears it)
+npm run web                     # browser chat UI at http://localhost:3000 (PORT= to change)
 npm test                        # unit + contract + guardrail tests (no LLM calls, ~0.5s)
 npm run eval                    # 13 behavioural eval cases against the live system (~2 min)
 npm run eval -- --case explicit-file-claim --no-judge
@@ -42,6 +43,12 @@ there is no provider SDK to version-match. Judge model can be set separately wit
 tools then return a structured "unavailable" result instead of breaking the agent.
 
 Node ≥ 20. No database, no network beyond OpenRouter and Open-Meteo.
+
+**Web chat.** `npm run web` serves a single-page chat UI (`public/index.html`) from a dependency-free
+Node `http` server (`src/web/server.ts`). It exposes one endpoint, `POST /api/chat`, which calls the
+same `runConcierge` entry point as the CLI and evals. The browser keeps the conversation history and
+sends it with each request, so the server is stateless and tabs never share state. Each reply shows
+which sub-agents handled it, the tool calls made, elapsed time, and any guardrail that fired.
 
 ---
 
