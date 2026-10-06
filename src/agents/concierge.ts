@@ -3,6 +3,8 @@ import { config } from "../config.js";
 import { createFlightAgent } from "./flight-agent.js";
 import { loungeAgent } from "./lounge-agent.js";
 import { claimsAgent } from "./claims-agent.js";
+import { InputGuard } from "../guardrails/input-guard.js";
+import { OutputGuard } from "../guardrails/output-guard.js";
 
 /**
  * Orchestrating agent.
@@ -45,6 +47,8 @@ Follow-ups: the conversation history is available to you. If you offered options
 Response style: merge the specialists' answers into one short, friendly reply. Lead with the most important fact. Do not mention the specialists or tools by name.`,
     model: config.model,
     agents: { flightAgent, loungeAgent, claimsAgent },
+    inputProcessors: [new InputGuard()],
+    outputProcessors: [new OutputGuard()],
     defaultOptions: { maxSteps: config.maxSteps },
   });
 }
