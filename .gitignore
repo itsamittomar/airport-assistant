@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.mastra/
+evals/results/
+*.log
+.DS_Store
+.idea/
