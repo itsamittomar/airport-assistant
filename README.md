@@ -23,7 +23,7 @@ Priority Pass / travel-insurance businesses, but the data is mocked.
 
 ```bash
 npm install
-cp .env.example .env            # add your OpenRouter key (OPEN_ROUTER_KEY=...)
+cp .env.example .env            # add OPEN_ROUTER_KEY=... (or an Anthropic/OpenAI/Google key, see below)
 npm run demo                    # the scenario above, with an execution trace
 npm run demo -- "Is EK5 on time?"
 npm run chat                    # interactive REPL with conversation history ('reset' clears it)
@@ -34,9 +34,13 @@ npm run eval -- --case explicit-file-claim --no-judge
 npm run typecheck
 ```
 
-**Model.** Any OpenRouter model with tool calling works; the default is `anthropic/claude-haiku-4.5`
-(set `MODEL=` in `.env`). Mastra's model router resolves the `openrouter/...` string directly, so
-there is no provider SDK to version-match. Judge model can be set separately with `JUDGE_MODEL=`.
+**Model and provider.** OpenRouter is the default (one key, any model; default model
+`anthropic/claude-haiku-4.5`). **No OpenRouter key?** Put an `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or
+`GOOGLE_GENERATIVE_AI_API_KEY` in `.env` instead and the matching provider is selected automatically
+(defaults: `claude-haiku-4-5`, `gpt-4o-mini`, `gemini-2.5-flash`). Force one with `MODEL_PROVIDER=`,
+override the model with `MODEL=`. Any model with tool calling works. Mastra's model router resolves the
+`<provider>/<model>` string directly, so there is no provider SDK to version-match. The eval judge model
+can be set separately with `JUDGE_MODEL=`.
 
 **MCP server.** The flight agent connects over stdio to [`open-meteo-mcp`](https://www.npmjs.com/package/open-meteo-mcp)
 (spawned with `npx -y open-meteo-mcp`, no API key). Set `MCP_DISABLED=1` to run offline; the weather
@@ -49,6 +53,8 @@ Node `http` server (`src/web/server.ts`). It exposes one endpoint, `POST /api/ch
 same `runConcierge` entry point as the CLI and evals. The browser keeps the conversation history and
 sends it with each request, so the server is stateless and tabs never share state. Each reply shows
 which sub-agents handled it, the tool calls made, elapsed time, and any guardrail that fired.
+
+![Web chat: a multi-turn conversation resolving a BA117 delay into lounge access for member PP-2002](docs/web-chat.png)
 
 ---
 
